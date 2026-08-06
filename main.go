@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	url := "https://httpbin.org/et"
+	url := "https://httpbin.org/get"
 
 	client := &http.Client{
 		Timeout: 10 * time.Second,
@@ -46,10 +46,12 @@ func main() {
 	fmt.Printf("Total time it took for %d req - %s sec\n", n, total)
 
 	if total200s > 0 {
-    fmt.Printf("Avg time per request is: %.5f\n", avgTime.Seconds())
+    	avgTime = total / time.Duration(total200s)
+
+		fmt.Printf("Avg time per request is: %s\n", avgTime)
 	} else {
 		fmt.Printf("Avg time per request: no successful requests\n")
 	}
-	
+
 	fmt.Printf("Total errors: %d", totalErrors)
 }
