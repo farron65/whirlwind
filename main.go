@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -38,7 +39,7 @@ func makeRequest(client *http.Client, url string) Result {
 func main() {
 	fmt.Println("hi")
 
-	url := "https://httpbin.org/get"
+	url := "http://localhost:9000/slow"
 
 	client := &http.Client{
 		Timeout: 10 * time.Second,
@@ -46,27 +47,48 @@ func main() {
 
 	statusCodeDist := make(map[int]int)
 
-	n := 10
-
-	totalErrors := 0
-
 	var total time.Duration
 	var avgTime time.Duration
 
+	var wg sync.WaitGroup
+	
+	C := 240
 
-	for range n {
-		r := makeRequest(client, url)
+	resultChan := make(chan Result, C)
+	totalErrors := 0
+
+	startTime := time.Now()
+
+	for range C {
+		wg.Add(1)
+		go func ()  {
+
+			defer wg.Done()
+			r := makeRequest(client, url)
+			resultChan <- r
+		}()
+	}
+
+	wg.Wait()
+
+	fmt.Printf("Total time it took for %d requests: %v\n", C, time.Since(startTime))
+	fmt.Println(resultChan)
+	fmt.Println(len(resultChan))
+
+	for range C {
+		r := <-resultChan
+
 		total += r.duration
+
 		if r.err != nil {
-			fmt.Printf("got an error: %s", r.err)
+			fmt.Println(r.err)
 			totalErrors++
 		} else {
 			statusCodeDist[r.statusCode]++
 		}
+		
 	}
-
-	fmt.Printf("Total time it took for %d req - %s\n", n, total)
-
+	
 	if statusCodeDist[http.StatusOK] > 0 {
     	avgTime = total / time.Duration(statusCodeDist[http.StatusOK])
 
