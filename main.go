@@ -51,6 +51,7 @@ func main() {
 	var avgLatency time.Duration
 
 	var wg sync.WaitGroup
+	var wgDrain sync.WaitGroup
 	
 	// N is the total number of requests
 	N := 1000
@@ -78,25 +79,32 @@ func main() {
 				resultChan <- r
 			}
 		}()
+
 	}
-
-	wg.Wait()
-
-	fmt.Printf("Total time it took for %d requests: %v\n", C, time.Since(startTime))
-
+		
 	// Drain exactly as many results as were sent
 	// after N/C*C truncation which can be less than N when N % C != 0
-	for range (N/C*C) {
-		r := <-resultChan
-		if r.err != nil {
-			fmt.Println(r.err)
-			totalErrors++
-		} else {
-			total += r.duration
-			totalResponses++
-			statusCodeDist[r.statusCode]++
+	wgDrain.Add(1)
+	go func() {
+		defer wgDrain.Done()
+
+		for range (N/C*C) {
+			r := <-resultChan
+			if r.err != nil {
+				fmt.Println(r.err)
+				totalErrors++
+			} else {
+				total += r.duration
+				totalResponses++
+				statusCodeDist[r.statusCode]++
+			}
 		}
-	}
+	}()
+
+	wg.Wait()
+	wgDrain.Wait()
+
+	fmt.Printf("Total time it took for %d requests: %v\n", C, time.Since(startTime))
 	
 	if totalResponses > 0 {
     	avgLatency = total / time.Duration(totalResponses)
