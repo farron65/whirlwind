@@ -39,7 +39,7 @@ func makeRequest(client *http.Client, url string) Result {
 func main() {
 	fmt.Println("hi")
 
-	url := "http://localhost:9000/slow"
+	url := "http://localhost:9000/error"
 
 	client := &http.Client{
 		Timeout: 10 * time.Second,
@@ -48,21 +48,22 @@ func main() {
 	statusCodeDist := make(map[int]int)
 
 	var total time.Duration
-	var avgTime time.Duration
+	var avgLatency time.Duration
 
 	var wg sync.WaitGroup
 	
 	C := 240
 
-	resultChan := make(chan Result, C)
+	totalResponses := 0
 	totalErrors := 0
+
+	resultChan := make(chan Result, C)
 
 	startTime := time.Now()
 
 	for range C {
 		wg.Add(1)
 		go func ()  {
-
 			defer wg.Done()
 			r := makeRequest(client, url)
 			resultChan <- r
@@ -72,29 +73,24 @@ func main() {
 	wg.Wait()
 
 	fmt.Printf("Total time it took for %d requests: %v\n", C, time.Since(startTime))
-	fmt.Println(resultChan)
-	fmt.Println(len(resultChan))
-
+	
 	for range C {
 		r := <-resultChan
-
-		total += r.duration
-
 		if r.err != nil {
 			fmt.Println(r.err)
 			totalErrors++
 		} else {
+			total += r.duration
+			totalResponses++
 			statusCodeDist[r.statusCode]++
 		}
-		
 	}
 	
-	if statusCodeDist[http.StatusOK] > 0 {
-    	avgTime = total / time.Duration(statusCodeDist[http.StatusOK])
-
-		fmt.Printf("Avg time per request is: %s\n", avgTime)
+	if totalResponses > 0 {
+    	avgLatency = total / time.Duration(totalResponses)
+		fmt.Printf("Avg latency (all HTTP responses): %s\n", avgLatency)
 	} else {
-		fmt.Printf("Avg time per request: no successful requests\n")
+		fmt.Printf("Avg latency: no HTTP responses received (all requests failed at the transport level)\n")
 	}
 
 	fmt.Printf("Total errors: %d", totalErrors)
