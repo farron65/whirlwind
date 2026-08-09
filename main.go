@@ -52,12 +52,16 @@ func main() {
 
 	var wg sync.WaitGroup
 	
+	// N is the total number of requests
+	N := 1000
+
+	// C is the amount of concurrent workers to run
 	C := 240
 
 	totalResponses := 0
 	totalErrors := 0
 
-	resultChan := make(chan Result, C)
+	resultChan := make(chan Result, C*1000)
 
 	startTime := time.Now()
 
@@ -65,16 +69,24 @@ func main() {
 		wg.Add(1)
 		go func ()  {
 			defer wg.Done()
-			r := makeRequest(client, url)
-			resultChan <- r
+
+			// Each worker fires N/C requests
+			//  e.g. N=1000, C=240 sends
+        	// only 960 requests total, not 1000.
+			for range N/C {
+				r := makeRequest(client, url)
+				resultChan <- r
+			}
 		}()
 	}
 
 	wg.Wait()
 
 	fmt.Printf("Total time it took for %d requests: %v\n", C, time.Since(startTime))
-	
-	for range C {
+
+	// Drain exactly as many results as were sent
+	// after N/C*C truncation which can be less than N when N % C != 0
+	for range (N/C*C) {
 		r := <-resultChan
 		if r.err != nil {
 			fmt.Println(r.err)
