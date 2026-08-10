@@ -9,20 +9,20 @@ import (
 )
 
 type Result struct {
-	duration time.Duration
+	duration   time.Duration
 	statusCode int
-	err error
+	err        error
 }
 
 func makeRequest(client *http.Client, url string) Result {
 	now := time.Now()
 	resp, err := client.Get(url)
-	
+
 	if err != nil {
 		return Result{
-			duration: 0,
+			duration:   0,
 			statusCode: 0,
-			err: err,
+			err:        err,
 		}
 	}
 
@@ -30,9 +30,9 @@ func makeRequest(client *http.Client, url string) Result {
 	resp.Body.Close()
 
 	return Result{
-		duration: time.Since(now),
+		duration:   time.Since(now),
 		statusCode: resp.StatusCode,
-		err: nil,
+		err:        nil,
 	}
 }
 
@@ -52,7 +52,7 @@ func main() {
 
 	var wg sync.WaitGroup
 	var wgDrain sync.WaitGroup
-	
+
 	// N is the total number of requests
 	N := 1000
 
@@ -62,33 +62,33 @@ func main() {
 	totalResponses := 0
 	totalErrors := 0
 
-	resultChan := make(chan Result, C*1000)
+	resultChan := make(chan Result, C)
 
 	startTime := time.Now()
 
 	for range C {
 		wg.Add(1)
-		go func ()  {
+		go func() {
 			defer wg.Done()
 
 			// Each worker fires N/C requests
 			//  e.g. N=1000, C=240 sends
-        	// only 960 requests total, not 1000.
-			for range N/C {
+			// only 960 requests total, not 1000.
+			for range N / C {
 				r := makeRequest(client, url)
 				resultChan <- r
 			}
 		}()
 
 	}
-		
+
 	// Drain exactly as many results as were sent
 	// after N/C*C truncation which can be less than N when N % C != 0
 	wgDrain.Add(1)
 	go func() {
 		defer wgDrain.Done()
 
-		for range (N/C*C) {
+		for range N / C * C {
 			r := <-resultChan
 			if r.err != nil {
 				fmt.Println(r.err)
@@ -105,9 +105,9 @@ func main() {
 	wgDrain.Wait()
 
 	fmt.Printf("Total time it took for %d requests: %v\n", C, time.Since(startTime))
-	
+
 	if totalResponses > 0 {
-    	avgLatency = total / time.Duration(totalResponses)
+		avgLatency = total / time.Duration(totalResponses)
 		fmt.Printf("Avg latency (all HTTP responses): %s\n", avgLatency)
 	} else {
 		fmt.Printf("Avg latency: no HTTP responses received (all requests failed at the transport level)\n")
