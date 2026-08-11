@@ -39,7 +39,7 @@ func makeRequest(client *http.Client, url string) Result {
 func main() {
 	fmt.Println("hi")
 
-	url := "http://localhost:9000/error"
+	url := "http://localhost:9000/ok"
 
 	client := &http.Client{
 		Timeout: 10 * time.Second,
@@ -51,7 +51,10 @@ func main() {
 	var avgLatency time.Duration
 
 	var wg sync.WaitGroup
-	var wgDrain sync.WaitGroup
+
+	// One-shot signal: drain goroutine sends true here once it has
+	// processed every result (after resultChan is closed and drained)
+	done := make(chan bool)
 
 	// N is the total number of requests
 	N := 1000
@@ -82,27 +85,29 @@ func main() {
 
 	}
 
-	// Drain exactly as many results as were sent
-	// after N/C*C truncation which can be less than N when N % C != 0
-	wgDrain.Add(1)
+	// Drains resultChan until it's closed by main after wg.Wait()
+	// stops once all sends are done and the channel is closed
 	go func() {
-		defer wgDrain.Done()
-
-		for range N / C * C {
-			r := <-resultChan
-			if r.err != nil {
-				fmt.Println(r.err)
+		for res := range resultChan {
+			if res.err != nil {
+				fmt.Println(res.err)
 				totalErrors++
 			} else {
-				total += r.duration
+				total += res.duration
 				totalResponses++
-				statusCodeDist[r.statusCode]++
+				statusCodeDist[res.statusCode]++
 			}
 		}
+		done <- true
 	}()
 
 	wg.Wait()
-	wgDrain.Wait()
+	// Safe to close now, wg.Wait() guarantees no worker will send again
+	close(resultChan)
+
+	// Blocks until the drain goroutine has finished processing
+	// every result currently in the channel
+	<-done
 
 	fmt.Printf("Total time it took for %d requests: %v\n", C, time.Since(startTime))
 
@@ -111,6 +116,10 @@ func main() {
 		fmt.Printf("Avg latency (all HTTP responses): %s\n", avgLatency)
 	} else {
 		fmt.Printf("Avg latency: no HTTP responses received (all requests failed at the transport level)\n")
+	}
+
+	if totalResponses + totalErrors != N/C*C {
+		fmt.Printf("unexpected values, responses %d + errors %d does not equal to %d\n", totalResponses, totalErrors, N/C*C)
 	}
 
 	fmt.Printf("Total errors: %d", totalErrors)
