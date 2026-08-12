@@ -62,6 +62,9 @@ func main() {
 	// C is the amount of concurrent workers to run
 	C := 240
 
+	// QPS is the amount of queries sent in a second
+	QPS := 100
+
 	totalResponses := 0
 	totalErrors := 0
 
@@ -69,20 +72,23 @@ func main() {
 
 	startTime := time.Now()
 
+	ticker := time.NewTicker(time.Duration(1e6/QPS) * time.Microsecond)
+	defer ticker.Stop()
+
 	for range C {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-
 			// Each worker fires N/C requests
 			//  e.g. N=1000, C=240 sends
 			// only 960 requests total, not 1000.
 			for range N / C {
+				<- ticker.C
+				
 				r := makeRequest(client, url)
 				resultChan <- r
 			}
 		}()
-
 	}
 
 	// Drains resultChan until it's closed by main after wg.Wait()
