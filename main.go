@@ -115,7 +115,7 @@ func main() {
 	// every result currently in the channel
 	<-done
 
-	fmt.Printf("Total time it took for %d requests: %v\n", C, time.Since(startTime))
+	fmt.Printf("Total time it took for %d requests: %v\n", N/C*C, time.Since(startTime))
 
 	if totalResponses > 0 {
 		avgLatency = total / time.Duration(totalResponses)
