@@ -134,7 +134,7 @@ func main() {
 		fmt.Printf("Avg latency: no HTTP responses received (all requests failed at the transport level)\n")
 	}
 
-	if totalResponses + totalErrors != N/C*C {
+	if totalResponses + totalErrors != N/C*C && ctx.Err() == nil {
 		fmt.Printf("unexpected values, responses %d + errors %d does not equal to %d\n", totalResponses, totalErrors, N/C*C)
 	}
 
