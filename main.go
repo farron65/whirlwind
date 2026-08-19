@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"os/signal"
 	"sync"
 	"time"
 )
@@ -52,6 +55,9 @@ func main() {
 
 	var wg sync.WaitGroup
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
 	// One-shot signal: drain goroutine sends true here once it has
 	// processed every result (after resultChan is closed and drained)
 	done := make(chan bool)
@@ -83,10 +89,14 @@ func main() {
 			//  e.g. N=1000, C=240 sends
 			// only 960 requests total, not 1000.
 			for range N / C {
-				<- ticker.C
-				
-				r := makeRequest(client, url)
-				resultChan <- r
+
+				select {
+				case <- ticker.C:
+					r := makeRequest(client, url)
+					resultChan <- r
+				case <- ctx.Done():
+					return
+				}
 			}
 		}()
 	}
