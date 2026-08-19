@@ -42,6 +42,22 @@ func makeRequest(client *http.Client, url string) Result {
 func main() {
 	fmt.Println("hi")
 
+	// N is the total number of requests
+	N := 1000
+
+	// C is the amount of concurrent workers to run
+	C := 240
+
+	// Z is the duration for which the requests will fire
+	Z := 0 * time.Second
+
+	// QPS is the amount of queries sent in a second
+	QPS := 100
+
+	// One-shot signal: drain goroutine sends true here once it has
+	// processed every result (after resultChan is closed and drained)
+	done := make(chan bool)
+
 	url := "http://localhost:9000/ok"
 
 	client := &http.Client{
@@ -58,18 +74,8 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	// One-shot signal: drain goroutine sends true here once it has
-	// processed every result (after resultChan is closed and drained)
-	done := make(chan bool)
-
-	// N is the total number of requests
-	N := 1000
-
-	// C is the amount of concurrent workers to run
-	C := 240
-
-	// QPS is the amount of queries sent in a second
-	QPS := 100
+	ctx2, cancel2 := context.WithTimeout(ctx, Z)
+	defer cancel2()
 
 	totalResponses := 0
 	totalErrors := 0
@@ -88,6 +94,17 @@ func main() {
 			// Each worker fires N/C requests
 			//  e.g. N=1000, C=240 sends
 			// only 960 requests total, not 1000.
+			if Z > 0 {
+				for {
+					select {
+					case <- ticker.C:
+						r := makeRequest(client, url)
+						resultChan <- r
+					case <- ctx2.Done():
+						return
+				}
+				}
+			}
 			for range N / C {
 
 				select {
@@ -125,8 +142,6 @@ func main() {
 	// every result currently in the channel
 	<-done
 
-	fmt.Printf("Total time it took for %d requests: %v\n", N/C*C, time.Since(startTime))
-
 	if totalResponses > 0 {
 		avgLatency = total / time.Duration(totalResponses)
 		fmt.Printf("Avg latency (all HTTP responses): %s\n", avgLatency)
@@ -134,8 +149,14 @@ func main() {
 		fmt.Printf("Avg latency: no HTTP responses received (all requests failed at the transport level)\n")
 	}
 
-	if totalResponses + totalErrors != N/C*C && ctx.Err() == nil {
+	if Z == 0 && totalResponses + totalErrors != N/C*C && ctx.Err() == nil {
 		fmt.Printf("unexpected values, responses %d + errors %d does not equal to %d\n", totalResponses, totalErrors, N/C*C)
+	}
+
+	if Z > 0 {
+    	fmt.Printf("Sent %d requests in %v\n", totalResponses+totalErrors, time.Since(startTime))
+	} else {
+		fmt.Printf("Total time it took for %d requests: %v\n", N/C*C, time.Since(startTime))
 	}
 
 	fmt.Printf("Total errors: %d", totalErrors)
