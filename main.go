@@ -65,7 +65,7 @@ func main() {
 	// processed every result (after resultChan is closed and drained)
 	done := make(chan bool)
 
-	url := "http://localhost:9000/ok"
+	url := "https://httpbin.org/get"
 
 	client := &http.Client{
 		Timeout: 10 * time.Second,
@@ -153,18 +153,39 @@ func main() {
 	// every result currently in the channel
 	<-done
 
+	
+
 	if totalResponses > 0 {
 		avgLatency = total / time.Duration(totalResponses)
 		fmt.Printf("Avg latency (all HTTP responses): %s\n", avgLatency)
 
 		slices.Sort(latencies)
 
+		//Histogram vars
+		bucketWidth := 10 * time.Millisecond
+		max := latencies[len(latencies)-1]
+
+		counts := make([]int, max/bucketWidth+1)
+
+		for _, lat := range latencies {
+			idx := lat / bucketWidth
+			counts[idx] += 1
+		}
+
+		for idx, count := range counts {
+			if count > 0 {
+				low := time.Duration(idx) * bucketWidth
+				high := time.Duration(idx+1) * bucketWidth
+				fmt.Printf("%v-%v: %d\n", low, high, count)
+			}
+		}
+
 		p50 := getPercentile(50, latencies)
 		p90 := getPercentile(90, latencies)
 		p99 := getPercentile(99, latencies)
 		
 		fmt.Println("min:", latencies[0])
-		fmt.Println("max:", latencies[len(latencies)-1])
+		fmt.Println("max:", max)
 		fmt.Printf("p50: %v | p90: %v | p99: %v\n", p50, p90, p99)
 	} else {
 		fmt.Printf("Avg latency: no HTTP responses received (all requests failed at the transport level)\n")
