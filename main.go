@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"sync"
 	"time"
 )
@@ -39,6 +41,11 @@ func makeRequest(client *http.Client, url string) Result {
 	}
 }
 
+func getPercentile(p float64, latencies []time.Duration) time.Duration {
+	percentile := math.Floor(p / 100 * float64(len(latencies)))
+	return latencies[int(percentile)]
+}
+
 func main() {
 	fmt.Println("hi")
 
@@ -69,6 +76,8 @@ func main() {
 	var total time.Duration
 	var avgLatency time.Duration
 
+	latencies := []time.Duration{}
+
 	var wg sync.WaitGroup
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -97,21 +106,22 @@ func main() {
 			if Z > 0 {
 				for {
 					select {
-					case <- ticker.C:
+					case <-ticker.C:
 						r := makeRequest(client, url)
 						resultChan <- r
-					case <- ctx2.Done():
+					case <-ctx2.Done():
 						return
-				}
+					}
 				}
 			}
 			for range N / C {
 
 				select {
-				case <- ticker.C:
+				case <-ticker.C:
 					r := makeRequest(client, url)
 					resultChan <- r
-				case <- ctx.Done():
+
+				case <-ctx.Done():
 					return
 				}
 			}
@@ -129,6 +139,7 @@ func main() {
 				total += res.duration
 				totalResponses++
 				statusCodeDist[res.statusCode]++
+				latencies = append(latencies, res.duration)
 			}
 		}
 		done <- true
@@ -145,19 +156,30 @@ func main() {
 	if totalResponses > 0 {
 		avgLatency = total / time.Duration(totalResponses)
 		fmt.Printf("Avg latency (all HTTP responses): %s\n", avgLatency)
+
+		slices.Sort(latencies)
+
+		p50 := getPercentile(50, latencies)
+		p90 := getPercentile(90, latencies)
+		p99 := getPercentile(99, latencies)
+		
+		fmt.Println("min:", latencies[0])
+		fmt.Println("max:", latencies[len(latencies)-1])
+		fmt.Printf("p50: %v | p90: %v | p99: %v\n", p50, p90, p99)
 	} else {
 		fmt.Printf("Avg latency: no HTTP responses received (all requests failed at the transport level)\n")
 	}
 
-	if Z == 0 && totalResponses + totalErrors != N/C*C && ctx.Err() == nil {
+	if Z == 0 && totalResponses+totalErrors != N/C*C && ctx.Err() == nil {
 		fmt.Printf("unexpected values, responses %d + errors %d does not equal to %d\n", totalResponses, totalErrors, N/C*C)
 	}
 
 	if Z > 0 {
-    	fmt.Printf("Sent %d requests in %v\n", totalResponses+totalErrors, time.Since(startTime))
+		fmt.Printf("Sent %d requests in %v\n", totalResponses+totalErrors, time.Since(startTime))
 	} else {
 		fmt.Printf("Total time it took for %d requests: %v\n", N/C*C, time.Since(startTime))
 	}
 
 	fmt.Printf("Total errors: %d", totalErrors)
 }
+
