@@ -65,10 +65,15 @@ func main() {
 	// processed every result (after resultChan is closed and drained)
 	done := make(chan bool)
 
-	url := "https://httpbin.org/get"
+	url := "http://localhost:9000/ok"
+
+	tr := &http.Transport{
+		MaxIdleConnsPerHost: min(C, 500),
+	}
 
 	client := &http.Client{
 		Timeout: 10 * time.Second,
+		Transport: tr,
 	}
 
 	statusCodeDist := make(map[int]int)
