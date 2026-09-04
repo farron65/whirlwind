@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"net/http/httptrace"
 	"os"
 	"os/signal"
 	"slices"
@@ -17,11 +18,45 @@ type Result struct {
 	duration   time.Duration
 	statusCode int
 	err        error
+	connDuration time.Duration
+	reqDuration time.Duration
 }
 
 func makeRequest(client *http.Client, url string) Result {
+
 	now := time.Now()
-	resp, err := client.Get(url)
+
+	var connStart, reqStart time.Time
+	var connDuration time.Duration
+	var reqDuration time.Duration
+
+	trace := &httptrace.ClientTrace{
+		GetConn: func(hostPort string) {
+			connStart = time.Now()
+		},
+		GotConn: func(connInfo httptrace.GotConnInfo) {
+			if !connInfo.Reused {
+				connDuration = time.Since(connStart)
+			}
+			reqStart = time.Now()
+		},
+		WroteRequest: func(w httptrace.WroteRequestInfo) {
+			reqDuration = time.Since(reqStart)	
+		},
+	}
+
+	req, err := http.NewRequest("GET", url, nil);
+	if err != nil {
+		return Result{
+			duration:   0,
+			statusCode: 0,
+			err:        err,
+		}
+	}
+
+	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace)) 
+
+	resp, err := client.Do(req)
 
 	if err != nil {
 		return Result{
@@ -38,6 +73,8 @@ func makeRequest(client *http.Client, url string) Result {
 		duration:   time.Since(now),
 		statusCode: resp.StatusCode,
 		err:        nil,
+		connDuration: connDuration,
+		reqDuration: reqDuration,
 	}
 }
 
@@ -82,6 +119,8 @@ func main() {
 	var avgLatency time.Duration
 
 	latencies := []time.Duration{}
+	connDurations := []time.Duration{}
+	reqDurations := []time.Duration{}
 
 	var wg sync.WaitGroup
 
@@ -144,7 +183,10 @@ func main() {
 				total += res.duration
 				totalResponses++
 				statusCodeDist[res.statusCode]++
+
 				latencies = append(latencies, res.duration)
+				connDurations = append(connDurations, res.connDuration)
+				reqDurations = append(reqDurations, res.reqDuration)
 			}
 		}
 		done <- true
@@ -165,6 +207,8 @@ func main() {
 		fmt.Printf("Avg latency (all HTTP responses): %s\n", avgLatency)
 
 		slices.Sort(latencies)
+		slices.Sort(connDurations)
+		slices.Sort(reqDurations)
 
 		//Histogram vars
 		bucketWidth := 10 * time.Millisecond
@@ -188,10 +232,16 @@ func main() {
 		p50 := getPercentile(50, latencies)
 		p90 := getPercentile(90, latencies)
 		p99 := getPercentile(99, latencies)
+
+		connP99 := getPercentile(99, connDurations)
+		reqP99 := getPercentile(99, reqDurations)
 		
 		fmt.Println("min:", latencies[0])
 		fmt.Println("max:", max)
 		fmt.Printf("p50: %v | p90: %v | p99: %v\n", p50, p90, p99)
+
+		fmt.Printf("connDuration p99: %v |\treqDuration p99: %v\n", connP99, reqP99)
+
 	} else {
 		fmt.Printf("Avg latency: no HTTP responses received (all requests failed at the transport level)\n")
 	}
