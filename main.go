@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"io"
 	"math"
@@ -87,16 +88,23 @@ func main() {
 	fmt.Println("hi")
 
 	// N is the total number of requests
-	N := 1000
+	var reqToSend = flag.Int("n", 10, "total number of requests to send, 0 until duration is done")
+	var numThreads = flag.Int("c", 4, "amount of concurrent workers to run")
+	var duration = flag.Duration("z", 0 * time.Second, "How long (duration) to run the test, 0 until C is done")
+	var qps = flag.Int("qps", 10, "queries per second")
+
+	flag.Parse()
+
+	N := *reqToSend
 
 	// C is the amount of concurrent workers to run
-	C := 240
+	C := *numThreads
 
 	// Z is the duration for which the requests will fire
-	Z := 0 * time.Second
+	Z := *duration
 
 	// QPS is the amount of queries sent in a second
-	QPS := 100
+	QPS := *qps
 
 	// One-shot signal: drain goroutine sends true here once it has
 	// processed every result (after resultChan is closed and drained)
