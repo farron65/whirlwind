@@ -100,6 +100,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if *qps <= 0 {
+		fmt.Println("QPS cannot be less than or equal to ZERO!")
+		os.Exit(1)
+	}
+
 	N := *reqToSend
 
 	// C is the amount of concurrent workers to run
