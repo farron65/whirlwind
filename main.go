@@ -95,6 +95,11 @@ func main() {
 
 	flag.Parse()
 
+	if *numThreads <= 0 {
+		fmt.Println("Number of workers cannot be less than or equal to ZERO!")
+		os.Exit(1)
+	}
+
 	N := *reqToSend
 
 	// C is the amount of concurrent workers to run
@@ -207,8 +212,6 @@ func main() {
 	// Blocks until the drain goroutine has finished processing
 	// every result currently in the channel
 	<-done
-
-	
 
 	if totalResponses > 0 {
 		avgLatency = total / time.Duration(totalResponses)
