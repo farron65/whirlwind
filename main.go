@@ -105,6 +105,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	if *duration < 0 {
+		fmt.Printf("Warning: -z cannot be negative (%v given), ignoring and running in count-mode\n", *duration)
+	}
+
 	N := *reqToSend
 
 	// C is the amount of concurrent workers to run
