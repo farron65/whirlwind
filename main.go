@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io"
 	"math"
@@ -15,11 +14,11 @@ import (
 )
 
 type Result struct {
-	duration   time.Duration
-	statusCode int
-	err        error
+	duration     time.Duration
+	statusCode   int
+	err          error
 	connDuration time.Duration
-	reqDuration time.Duration
+	reqDuration  time.Duration
 }
 
 func makeRequest(client *http.Client, url string) Result {
@@ -41,11 +40,11 @@ func makeRequest(client *http.Client, url string) Result {
 			reqStart = time.Now()
 		},
 		WroteRequest: func(w httptrace.WroteRequestInfo) {
-			reqDuration = time.Since(reqStart)	
+			reqDuration = time.Since(reqStart)
 		},
 	}
 
-	req, err := http.NewRequest("GET", url, nil);
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return Result{
 			duration:   0,
@@ -54,7 +53,7 @@ func makeRequest(client *http.Client, url string) Result {
 		}
 	}
 
-	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace)) 
+	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
 
 	resp, err := client.Do(req)
 
@@ -70,11 +69,11 @@ func makeRequest(client *http.Client, url string) Result {
 	resp.Body.Close()
 
 	return Result{
-		duration:   time.Since(now),
-		statusCode: resp.StatusCode,
-		err:        nil,
+		duration:     time.Since(now),
+		statusCode:   resp.StatusCode,
+		err:          nil,
 		connDuration: connDuration,
-		reqDuration: reqDuration,
+		reqDuration:  reqDuration,
 	}
 }
 
@@ -84,41 +83,14 @@ func getPercentile(p float64, latencies []time.Duration) time.Duration {
 }
 
 func main() {
-	// N is the total number of requests
-	var reqToSend = flag.Int("n", 10, "total number of requests to send, 0 until duration is done")
-	var numThreads = flag.Int("c", 4, "amount of concurrent workers to run")
-	var duration = flag.Duration("z", 0*time.Second, "How long (duration) to run the test, 0 until C is done")
-	var qps = flag.Int("qps", 10, "queries per second")
+	flags := parseFlags()
 
-	flag.Parse()
+	N := flags.N
+	C := flags.C
+	Z := flags.Z
+	QPS := flags.QPS
 
-	if *numThreads <= 0 {
-		fmt.Println("Number of workers cannot be less than or equal to ZERO!")
-		os.Exit(1)
-	}
-
-	if *qps <= 0 {
-		fmt.Println("QPS cannot be less than or equal to ZERO!")
-		os.Exit(1)
-	}
-
-	if *duration < 0 {
-		fmt.Printf("Warning: -z cannot be negative (%v given), ignoring and running in count-mode\n", *duration)
-	}
-
-	N := *reqToSend
-	C := *numThreads
-	Z := *duration
-	QPS := *qps
-
-	url := "https://httpbin.org/get"
-
-	fmt.Printf("Target: %s\n", url)
-	if Z > 0 {
-		fmt.Printf("Config: duration=%v concurrency=%d qps=%d\n\n", Z, C, QPS)
-	} else {
-		fmt.Printf("Config: requests=%d concurrency=%d qps=%d\n\n", N, C, QPS)
-	}
+	url := "https://trenden.netlify.app/health"
 
 	done := make(chan bool)
 
@@ -209,20 +181,22 @@ func main() {
 	elapsed := time.Since(startTime)
 
 	newReport := Report{
+		url:            url,
 		totalResponses: totalResponses,
-		totalTestTime: totalTestTime,
+		totalTestTime:  totalTestTime,
 
-		latencies: latencies,
+		latencies:     latencies,
 		connDurations: connDurations,
-		reqDurations: reqDurations,
+		reqDurations:  reqDurations,
 
 		statusCodeDist: statusCodeDist,
-		totalErrors: totalErrors,
-		elapsed: elapsed,
+		totalErrors:    totalErrors,
+		elapsed:        elapsed,
 
-		N: N,
-		C: C,
-		Z: Z,
+		N:     N,
+		C:     C,
+		Z:     Z,
+		QPS:   QPS,
 		ctxOK: ctx.Err() == nil,
 	}
 

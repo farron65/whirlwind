@@ -7,43 +7,59 @@ import (
 )
 
 type Report struct {
+	url            string
 	totalResponses int
-	totalTestTime          time.Duration
+	totalTestTime  time.Duration
 
-	latencies      []time.Duration
-	connDurations  []time.Duration
-	reqDurations   []time.Duration
+	latencies     []time.Duration
+	connDurations []time.Duration
+	reqDurations  []time.Duration
 
 	statusCodeDist map[int]int
 	totalErrors    int
 	elapsed        time.Duration
 
-	N              int
-	C              int
-	Z              time.Duration
-	ctxOK       bool
+	N     int
+	C     int
+	Z     time.Duration
+	QPS   int
+	ctxOK bool
 }
 
 func runReport(r *Report) {
 	totalResponses := r.totalResponses
 	totalTestTime := r.totalTestTime
+
 	latencies := r.latencies
 	connDurations := r.connDurations
 	reqDurations := r.reqDurations
+
 	statusCodeDist := r.statusCodeDist
 	totalErrors := r.totalErrors
 	elapsed := r.elapsed
+
 	N := r.N
 	C := r.C
 	Z := r.Z
+	QPS := r.QPS
 	ctxOK := r.ctxOK
 
 	var avgLatency time.Duration
+
+	fmt.Printf("Target: %s\n", r.url)
+
+	if Z > 0 {
+		fmt.Printf("Config: duration=%v concurrency=%d qps=%d\n\n", Z, C, QPS)
+	} else {
+		fmt.Printf("Config: requests=%d concurrency=%d qps=%d\n\n", N, C, QPS)
+	}
 
 	fmt.Println("--- Summary ---")
 
 	if totalResponses > 0 {
 		avgLatency = totalTestTime / time.Duration(totalResponses)
+
+		fmt.Println(connDurations)
 
 		slices.Sort(latencies)
 		slices.Sort(connDurations)
