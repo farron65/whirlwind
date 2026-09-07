@@ -85,12 +85,10 @@ func getPercentile(p float64, latencies []time.Duration) time.Duration {
 }
 
 func main() {
-	fmt.Println("hi")
-
 	// N is the total number of requests
 	var reqToSend = flag.Int("n", 10, "total number of requests to send, 0 until duration is done")
 	var numThreads = flag.Int("c", 4, "amount of concurrent workers to run")
-	var duration = flag.Duration("z", 0 * time.Second, "How long (duration) to run the test, 0 until C is done")
+	var duration = flag.Duration("z", 0*time.Second, "How long (duration) to run the test, 0 until C is done")
 	var qps = flag.Int("qps", 10, "queries per second")
 
 	flag.Parse()
@@ -110,28 +108,27 @@ func main() {
 	}
 
 	N := *reqToSend
-
-	// C is the amount of concurrent workers to run
 	C := *numThreads
-
-	// Z is the duration for which the requests will fire
 	Z := *duration
-
-	// QPS is the amount of queries sent in a second
 	QPS := *qps
 
-	// One-shot signal: drain goroutine sends true here once it has
-	// processed every result (after resultChan is closed and drained)
-	done := make(chan bool)
+	url := "https://httpbin.org/get"
 
-	url := "http://localhost:9000/ok"
+	fmt.Printf("Target: %s\n", url)
+	if Z > 0 {
+		fmt.Printf("Config: duration=%v concurrency=%d qps=%d\n\n", Z, C, QPS)
+	} else {
+		fmt.Printf("Config: requests=%d concurrency=%d qps=%d\n\n", N, C, QPS)
+	}
+
+	done := make(chan bool)
 
 	tr := &http.Transport{
 		MaxIdleConnsPerHost: min(C, 500),
 	}
 
 	client := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout:   10 * time.Second,
 		Transport: tr,
 	}
 
@@ -166,9 +163,6 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			// Each worker fires N/C requests
-			//  e.g. N=1000, C=240 sends
-			// only 960 requests total, not 1000.
 			if Z > 0 {
 				for {
 					select {
@@ -181,12 +175,10 @@ func main() {
 				}
 			}
 			for range N / C {
-
 				select {
 				case <-ticker.C:
 					r := makeRequest(client, url)
 					resultChan <- r
-
 				case <-ctx.Done():
 					return
 				}
@@ -194,8 +186,6 @@ func main() {
 		}()
 	}
 
-	// Drains resultChan until it's closed by main after wg.Wait()
-	// stops once all sends are done and the channel is closed
 	go func() {
 		for res := range resultChan {
 			if res.err != nil {
@@ -215,25 +205,47 @@ func main() {
 	}()
 
 	wg.Wait()
-	// Safe to close now, wg.Wait() guarantees no worker will send again
 	close(resultChan)
-
-	// Blocks until the drain goroutine has finished processing
-	// every result currently in the channel
 	<-done
+
+	elapsed := time.Since(startTime)
+
+	fmt.Println("--- Summary ---")
 
 	if totalResponses > 0 {
 		avgLatency = total / time.Duration(totalResponses)
-		fmt.Printf("Avg latency (all HTTP responses): %s\n", avgLatency)
 
 		slices.Sort(latencies)
 		slices.Sort(connDurations)
 		slices.Sort(reqDurations)
 
-		//Histogram vars
-		bucketWidth := 10 * time.Millisecond
 		max := latencies[len(latencies)-1]
 
+		p50 := getPercentile(50, latencies)
+		p90 := getPercentile(90, latencies)
+		p99 := getPercentile(99, latencies)
+
+		connP99 := getPercentile(99, connDurations)
+		reqP99 := getPercentile(99, reqDurations)
+
+		fmt.Printf("Avg latency: %v\n", avgLatency)
+		fmt.Println("min:", latencies[0])
+		fmt.Println("max:", max)
+		fmt.Printf("\np50: %v | p90: %v | p99: %v\n", p50, p90, p99)
+		fmt.Printf("connDuration p99: %v |\treqDuration p99: %v\n", connP99, reqP99)
+
+		fmt.Println("\nStatus code distribution:")
+		keys := make([]int, 0, len(statusCodeDist))
+		for code := range statusCodeDist {
+			keys = append(keys, code)
+		}
+		slices.Sort(keys)
+		for _, statusCode := range keys {
+			fmt.Printf("[%d]: %d\n", statusCode, statusCodeDist[statusCode])
+		}
+
+		fmt.Println("\n--- Histogram ---")
+		bucketWidth := 10 * time.Millisecond
 		counts := make([]int, max/bucketWidth+1)
 
 		for _, lat := range latencies {
@@ -248,34 +260,21 @@ func main() {
 				fmt.Printf("%v-%v: %d\n", low, high, count)
 			}
 		}
-
-		p50 := getPercentile(50, latencies)
-		p90 := getPercentile(90, latencies)
-		p99 := getPercentile(99, latencies)
-
-		connP99 := getPercentile(99, connDurations)
-		reqP99 := getPercentile(99, reqDurations)
-		
-		fmt.Println("min:", latencies[0])
-		fmt.Println("max:", max)
-		fmt.Printf("p50: %v | p90: %v | p99: %v\n", p50, p90, p99)
-
-		fmt.Printf("connDuration p99: %v |\treqDuration p99: %v\n", connP99, reqP99)
-
 	} else {
-		fmt.Printf("Avg latency: no HTTP responses received (all requests failed at the transport level)\n")
+		fmt.Println("no HTTP responses received (all requests failed at the transport level)")
 	}
+
+	fmt.Println("\n--- Result ---")
 
 	if Z == 0 && totalResponses+totalErrors != N/C*C && ctx.Err() == nil {
 		fmt.Printf("unexpected values, responses %d + errors %d does not equal to %d\n", totalResponses, totalErrors, N/C*C)
 	}
 
 	if Z > 0 {
-		fmt.Printf("Sent %d requests in %v\n", totalResponses+totalErrors, time.Since(startTime))
+		fmt.Printf("Sent %d requests in %v\n", totalResponses+totalErrors, elapsed)
 	} else {
-		fmt.Printf("Total time it took for %d requests: %v\n", N/C*C, time.Since(startTime))
+		fmt.Printf("Total time for %d requests: %v\n", N/C*C, elapsed)
 	}
 
-	fmt.Printf("Total errors: %d", totalErrors)
+	fmt.Printf("Total errors: %d\n", totalErrors)
 }
-
