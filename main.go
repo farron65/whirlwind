@@ -10,7 +10,6 @@ import (
 	"net/http/httptrace"
 	"os"
 	"os/signal"
-	"slices"
 	"sync"
 	"time"
 )
@@ -134,8 +133,7 @@ func main() {
 
 	statusCodeDist := make(map[int]int)
 
-	var total time.Duration
-	var avgLatency time.Duration
+	var totalTestTime time.Duration
 
 	latencies := []time.Duration{}
 	connDurations := []time.Duration{}
@@ -192,7 +190,7 @@ func main() {
 				fmt.Println(res.err)
 				totalErrors++
 			} else {
-				total += res.duration
+				totalTestTime += res.duration
 				totalResponses++
 				statusCodeDist[res.statusCode]++
 
@@ -210,71 +208,23 @@ func main() {
 
 	elapsed := time.Since(startTime)
 
-	fmt.Println("--- Summary ---")
+	newReport := Report{
+		totalResponses: totalResponses,
+		totalTestTime: totalTestTime,
 
-	if totalResponses > 0 {
-		avgLatency = total / time.Duration(totalResponses)
+		latencies: latencies,
+		connDurations: connDurations,
+		reqDurations: reqDurations,
 
-		slices.Sort(latencies)
-		slices.Sort(connDurations)
-		slices.Sort(reqDurations)
+		statusCodeDist: statusCodeDist,
+		totalErrors: totalErrors,
+		elapsed: elapsed,
 
-		max := latencies[len(latencies)-1]
-
-		p50 := getPercentile(50, latencies)
-		p90 := getPercentile(90, latencies)
-		p99 := getPercentile(99, latencies)
-
-		connP99 := getPercentile(99, connDurations)
-		reqP99 := getPercentile(99, reqDurations)
-
-		fmt.Printf("Avg latency: %v\n", avgLatency)
-		fmt.Println("min:", latencies[0])
-		fmt.Println("max:", max)
-		fmt.Printf("\np50: %v | p90: %v | p99: %v\n", p50, p90, p99)
-		fmt.Printf("connDuration p99: %v |\treqDuration p99: %v\n", connP99, reqP99)
-
-		fmt.Println("\nStatus code distribution:")
-		keys := make([]int, 0, len(statusCodeDist))
-		for code := range statusCodeDist {
-			keys = append(keys, code)
-		}
-		slices.Sort(keys)
-		for _, statusCode := range keys {
-			fmt.Printf("[%d]: %d\n", statusCode, statusCodeDist[statusCode])
-		}
-
-		fmt.Println("\n--- Histogram ---")
-		bucketWidth := 10 * time.Millisecond
-		counts := make([]int, max/bucketWidth+1)
-
-		for _, lat := range latencies {
-			idx := lat / bucketWidth
-			counts[idx] += 1
-		}
-
-		for idx, count := range counts {
-			if count > 0 {
-				low := time.Duration(idx) * bucketWidth
-				high := time.Duration(idx+1) * bucketWidth
-				fmt.Printf("%v-%v: %d\n", low, high, count)
-			}
-		}
-	} else {
-		fmt.Println("no HTTP responses received (all requests failed at the transport level)")
+		N: N,
+		C: C,
+		Z: Z,
+		ctxOK: ctx.Err() == nil,
 	}
 
-	fmt.Println("\n--- Result ---")
-
-	if Z == 0 && totalResponses+totalErrors != N/C*C && ctx.Err() == nil {
-		fmt.Printf("unexpected values, responses %d + errors %d does not equal to %d\n", totalResponses, totalErrors, N/C*C)
-	}
-
-	if Z > 0 {
-		fmt.Printf("Sent %d requests in %v\n", totalResponses+totalErrors, elapsed)
-	} else {
-		fmt.Printf("Total time for %d requests: %v\n", N/C*C, elapsed)
-	}
-
-	fmt.Printf("Total errors: %d\n", totalErrors)
+	runReport(&newReport)
 }
