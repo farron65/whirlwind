@@ -36,6 +36,8 @@ func makeRequest(client *http.Client, url string) Result {
 		GotConn: func(connInfo httptrace.GotConnInfo) {
 			if !connInfo.Reused {
 				connDuration = time.Since(connStart)
+			} else {
+				connDuration = -1
 			}
 			reqStart = time.Now()
 		},
@@ -94,7 +96,7 @@ func main() {
 	Z := flags.Z
 	QPS := flags.QPS
 
-	url := "https://"
+	url := "https://trenden.netlify.app/"
 
 	done := make(chan bool)
 
@@ -171,7 +173,9 @@ func main() {
 				statusCodeDist[res.statusCode]++
 
 				latencies = append(latencies, res.duration)
-				connDurations = append(connDurations, res.connDuration)
+				if res.connDuration != -1 {
+					connDurations = append(connDurations, res.connDuration)
+				}
 				if res.reqDuration != -1 {
 					reqDurations = append(reqDurations, res.reqDuration)
 				}

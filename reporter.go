@@ -59,8 +59,6 @@ func runReport(r *Report) {
 	if totalResponses > 0 {
 		avgLatency = totalTestTime / time.Duration(totalResponses)
 
-		// fmt.Println(connDurations)
-
 		slices.Sort(latencies)
 		slices.Sort(connDurations)
 		slices.Sort(reqDurations)
@@ -78,7 +76,7 @@ func runReport(r *Report) {
 		fmt.Println("min:", latencies[0])
 		fmt.Println("max:", max)
 		fmt.Printf("\np50: %v | p90: %v | p99: %v\n", p50, p90, p99)
-		fmt.Printf("connDuration p99: %v |\treqDuration p99: %v\n", connP99, reqP99)
+		fmt.Printf("connDuration p99: %v (from %d fresh connections) | reqDuration p99: %v\n", connP99, len(connDurations), reqP99)
 
 		fmt.Println("\nStatus code distribution:")
 		keys := make([]int, 0, len(statusCodeDist))
