@@ -40,7 +40,11 @@ func makeRequest(client *http.Client, url string) Result {
 			reqStart = time.Now()
 		},
 		WroteRequest: func(w httptrace.WroteRequestInfo) {
-			reqDuration = time.Since(reqStart)
+			if reqStart.IsZero() {
+				reqDuration = -1
+			} else {
+				reqDuration = time.Since(reqStart)
+			}
 		},
 	}
 
@@ -90,7 +94,7 @@ func main() {
 	Z := flags.Z
 	QPS := flags.QPS
 
-	url := "https://trenden.netlify.app/health"
+	url := "https://"
 
 	done := make(chan bool)
 
@@ -168,7 +172,9 @@ func main() {
 
 				latencies = append(latencies, res.duration)
 				connDurations = append(connDurations, res.connDuration)
-				reqDurations = append(reqDurations, res.reqDuration)
+				if res.reqDuration != -1 {
+					reqDurations = append(reqDurations, res.reqDuration)
+				}
 			}
 		}
 		done <- true

@@ -59,7 +59,7 @@ func runReport(r *Report) {
 	if totalResponses > 0 {
 		avgLatency = totalTestTime / time.Duration(totalResponses)
 
-		fmt.Println(connDurations)
+		// fmt.Println(connDurations)
 
 		slices.Sort(latencies)
 		slices.Sort(connDurations)
