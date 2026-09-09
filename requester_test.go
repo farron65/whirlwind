@@ -1,6 +1,8 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 )
@@ -51,5 +53,88 @@ func TestGetPercentile(t *testing.T) {
 				t.Errorf("getPercentile(%v, %v) = %v, want %v", tt.p, tt.latencies, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestMakeRequest_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	}))
+	defer srv.Close()
+
+	client := &http.Client{Timeout: 2 * time.Second}
+	res := makeRequest(client, srv.URL)
+
+	if res.err != nil {
+		t.Fatalf("unexpected error: %v", res.err)
+	}
+	if res.statusCode != http.StatusOK {
+		t.Errorf("statusCode = %d, want %d", res.statusCode, http.StatusOK)
+	}
+	if res.duration <= 0 {
+		t.Errorf("duration = %v, want > 0", res.duration)
+	}
+}
+
+func TestMakeRequest_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("ok"))
+	}))
+	defer srv.Close()
+
+	client := &http.Client{Timeout: 2 * time.Second}
+	res := makeRequest(client, srv.URL)
+
+	if res.err != nil {
+		t.Fatalf("unexpected error: %v", res.err)
+	}
+	if res.statusCode != http.StatusInternalServerError {
+		t.Errorf("statusCode = %d, want %d", res.statusCode, http.StatusInternalServerError)
+	}
+}
+
+func TestMakeRequest_ServerUnreachable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	srv.Close()
+
+	client := &http.Client{Timeout: 2 * time.Second}
+	res := makeRequest(client, srv.URL)
+
+	if res.err == nil {
+		t.Fatal("expected error for unreachable server, got nil")
+	}
+	if res.statusCode != 0 {
+		t.Errorf("statusCode = %d, want 0", res.statusCode)
+	}
+}
+
+func TestMakeRequest_SlowServer(t *testing.T) {
+	delay := 100 * time.Millisecond
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(delay)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+
+	client := &http.Client{Timeout: 2 * time.Second}
+	res := makeRequest(client, srv.URL)
+
+	if res.err != nil {
+		t.Fatalf("unexpected error: %v", res.err)
+	}
+	if res.duration < delay {
+		t.Errorf("duration = %v, want at least %v", res.duration, delay)
+	}
+}
+
+func TestMakeRequest_BadURL(t *testing.T) {
+	client := &http.Client{Timeout: 2 * time.Second}
+	res := makeRequest(client, "://bad-url")
+
+	if res.err == nil {
+		t.Fatal("expected error for malformed URL, got nil")
 	}
 }
