@@ -12,6 +12,7 @@ type ConfigFlags struct {
 	C   int
 	Z   time.Duration
 	QPS int
+	URL string
 }
 
 func parseFlags() ConfigFlags {
@@ -20,6 +21,7 @@ func parseFlags() ConfigFlags {
 	var numThreads = flag.Int("c", 4, "amount of concurrent workers to run")
 	var duration = flag.Duration("z", 0*time.Second, "How long (duration) to run the test, 0 until C is done")
 	var qps = flag.Int("qps", 10, "queries per second")
+	var url = flag.String("url", "", "target url")
 
 	flag.Parse()
 
@@ -37,15 +39,22 @@ func parseFlags() ConfigFlags {
 		fmt.Printf("Warning: -z cannot be negative (%v given), ignoring and running in count-mode\n", *duration)
 	}
 
+	if *url == "" {
+		fmt.Println("URL cannot be an empty string")
+		os.Exit(1)
+	}
+
 	N := *reqToSend
 	C := *numThreads
 	Z := *duration
 	QPS := *qps
+	URL := *url
 
 	return ConfigFlags{
 		N:   N,
 		C:   C,
 		Z:   Z,
 		QPS: QPS,
+		URL: URL,
 	}
 }

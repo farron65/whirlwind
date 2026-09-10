@@ -17,8 +17,7 @@ func main() {
 	C := flags.C
 	Z := flags.Z
 	QPS := flags.QPS
-
-	url := "http://localhost:9000/ok"
+	URL := flags.URL
 
 	done := make(chan bool)
 
@@ -65,7 +64,7 @@ func main() {
 				for {
 					select {
 					case <-ticker.C:
-						r := makeRequest(client, url)
+						r := makeRequest(client, URL)
 						resultChan <- r
 					case <-ctx2.Done():
 						return
@@ -75,7 +74,7 @@ func main() {
 			for range N / C {
 				select {
 				case <-ticker.C:
-					r := makeRequest(client, url)
+					r := makeRequest(client, URL)
 					resultChan <- r
 				case <-ctx.Done():
 					return
@@ -113,7 +112,7 @@ func main() {
 	elapsed := time.Since(startTime)
 
 	newReport := Report{
-		url:            url,
+		url:            URL,
 		totalResponses: totalResponses,
 		totalTestTime:  totalTestTime,
 
