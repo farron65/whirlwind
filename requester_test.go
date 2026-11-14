@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -64,7 +65,7 @@ func TestMakeRequest_Success(t *testing.T) {
 	defer srv.Close()
 
 	client := &http.Client{Timeout: 2 * time.Second}
-	res := makeRequest(client, srv.URL)
+	res := makeRequest(context.Background(), client, srv.URL)
 
 	if res.err != nil {
 		t.Fatalf("unexpected error: %v", res.err)
@@ -85,7 +86,7 @@ func TestMakeRequest_ServerError(t *testing.T) {
 	defer srv.Close()
 
 	client := &http.Client{Timeout: 2 * time.Second}
-	res := makeRequest(client, srv.URL)
+	res := makeRequest(context.Background(), client, srv.URL)
 
 	if res.err != nil {
 		t.Fatalf("unexpected error: %v", res.err)
@@ -100,7 +101,7 @@ func TestMakeRequest_ServerUnreachable(t *testing.T) {
 	srv.Close()
 
 	client := &http.Client{Timeout: 2 * time.Second}
-	res := makeRequest(client, srv.URL)
+	res := makeRequest(context.Background(), client, srv.URL)
 
 	if res.err == nil {
 		t.Fatal("expected error for unreachable server, got nil")
@@ -120,7 +121,7 @@ func TestMakeRequest_SlowServer(t *testing.T) {
 
 
 	client := &http.Client{Timeout: 2 * time.Second}
-	res := makeRequest(client, srv.URL)
+	res := makeRequest(context.Background(), client, srv.URL)
 
 	if res.err != nil {
 		t.Fatalf("unexpected error: %v", res.err)
@@ -132,7 +133,7 @@ func TestMakeRequest_SlowServer(t *testing.T) {
 
 func TestMakeRequest_BadURL(t *testing.T) {
 	client := &http.Client{Timeout: 2 * time.Second}
-	res := makeRequest(client, "://bad-url")
+	res := makeRequest(context.Background(), client, "://bad-url")
 
 	if res.err == nil {
 		t.Fatal("expected error for malformed URL, got nil")

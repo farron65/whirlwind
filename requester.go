@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"io"
 	"math"
 	"net/http"
@@ -16,7 +17,7 @@ type Result struct {
 	reqDuration  time.Duration
 }
 
-func makeRequest(client *http.Client, url string) Result {
+func makeRequest(ctx context.Context, client *http.Client, url string) Result {
 
 	now := time.Now()
 
@@ -45,7 +46,7 @@ func makeRequest(client *http.Client, url string) Result {
 		},
 	}
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return Result{
 			duration:   0,

@@ -64,7 +64,7 @@ func main() {
 				for {
 					select {
 					case <-ticker.C:
-						r := makeRequest(client, URL)
+						r := makeRequest(ctx, client, URL)
 						resultChan <- r
 					case <-ctx2.Done():
 						return
@@ -74,7 +74,7 @@ func main() {
 			for range N / C {
 				select {
 				case <-ticker.C:
-					r := makeRequest(client, URL)
+					r := makeRequest(ctx, client, URL)
 					resultChan <- r
 				case <-ctx.Done():
 					return
