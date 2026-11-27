@@ -81,5 +81,5 @@ func makeRequest(ctx context.Context, client *http.Client, url string) Result {
 
 func getPercentile(p float64, latencies []time.Duration) time.Duration {
 	percentile := math.Floor(p / 100 * float64(len(latencies)))
-	return latencies[int(percentile)]
+	return latencies[min(int(percentile), len(latencies)-1)]
 }

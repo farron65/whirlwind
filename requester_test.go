@@ -45,6 +45,12 @@ func TestGetPercentile(t *testing.T) {
 			latencies: []time.Duration{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
 			want:      10,
 		},
+		{
+			name:      "p100 returns last element",
+			p:         100,
+			latencies: []time.Duration{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+			want:      10,
+		},
 	}
 
 	for _, tt := range tests {
