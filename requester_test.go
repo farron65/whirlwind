@@ -51,6 +51,12 @@ func TestGetPercentile(t *testing.T) {
 			latencies: []time.Duration{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
 			want:      10,
 		},
+		{
+			name:      "empty slice returns zero",
+			p:         50,
+			latencies: []time.Duration{},
+			want:      0,
+		},
 	}
 
 	for _, tt := range tests {
@@ -124,7 +130,6 @@ func TestMakeRequest_SlowServer(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
-
 
 	client := &http.Client{Timeout: 2 * time.Second}
 	res := makeRequest(context.Background(), client, srv.URL)

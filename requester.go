@@ -79,7 +79,13 @@ func makeRequest(ctx context.Context, client *http.Client, url string) Result {
 	}
 }
 
+// getPercentile returns the value at the p-th percentile of latencies,
+// which must be sorted in ascending order. It returns 0 if latencies is empty
 func getPercentile(p float64, latencies []time.Duration) time.Duration {
+	if len(latencies) == 0 {
+		return 0
+	}
+
 	percentile := math.Floor(p / 100 * float64(len(latencies)))
 	return latencies[min(int(percentile), len(latencies)-1)]
 }
